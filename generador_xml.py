@@ -1,5 +1,32 @@
-from lxml import etree
+from xml.dom.minidom import parse
+import xml.dom.minidom
+import base64
+from M2Crypto import RSA
+from time import strftime
+from lxml import etree as ET
+import hashlib
 from datetime import datetime
+import subprocess
+import commands
+
+ruta_cer = '/home/fofu/Documentos/Informacion_FINKOK/practicas_amexiproc/informacion_cliente/IIA040805DZ4.cer'
+certificado = subprocess.check_output('openssl x509 -inform DER -in ' + str(ruta_cer), shell=True).replace("\n", "")
+serial = subprocess.check_output('openssl x509 -inform DER -in ' + str(ruta_cer) + ' -noout -serial', shell=True)
+get_serial = ""
+get_certificado = ""
+
+indice = 7
+while indice < len(serial):
+	if indice % 2 == 0:
+		get_serial += serial[indice]
+	indice += 1
+
+indice = 27
+while indice < len(certificado) - 25:
+	get_certificado += certificado[indice]
+	indice += 1
+
+sello = ""
 
 tiempo = datetime.now()
 fecha = tiempo.strftime("%Y-%m-%d")+"T"+tiempo.strftime("%H:%M:%S")
@@ -73,7 +100,6 @@ while i < cfdi_relacionados:
 	cfdi = raw_input("UUID: ")
 	cfdiRelacionados.append(cfdi)
 	i+=1
-#tiposFactoresTraslados = []
 
 cantConceptos = input("Cantidad de conceptos: ")
 
@@ -104,11 +130,8 @@ while iterador < cantConceptos:
 	importesProdServ.append(importe)
 	subTotal += importe
 
-	# h = 0
-	# while h < cantConceptos:
 	base = importesProdServ[iterador] - descuentosProdServ[iterador]
 	bases.append(base)
-	#h+=1
 
 	importado = raw_input("Concepto importado? (y/n): ")
 	if importado == "y" or importado == "Y" or importado == "s" or importado == "S":
@@ -151,14 +174,12 @@ while iterador < cantConceptos:
 			i_tras = 0
 			while i_tras < cant_traslados:
 				print "-----------------------TRASLADOS-----------------------"
-				# tipoFactorTraslado = raw_input("Tipo de Factor: ")
 				impuestoTraslado = raw_input("Impuesto: ")
 				tasaOcuotaTraslado = float(input("Tasa o cuota: "))
 				importeTraslado = bases[iterador] * tasaOcuotaTraslado
 				importesTraslados[1].append(importeTraslado)
 				totalImpuestosTrasladados += importeTraslado
 				impuestosTraslados.append(impuestoTraslado)
-				# tiposFactoresTraslados.append(tipoFactorTraslado)
 				tasasCuotas.append(tasaOcuotaTraslado)
 				i_tras += 1
 
@@ -189,8 +210,8 @@ totalDeTotales = subTotal - totalImpuestosRetenidos + totalImpuestosTrasladados 
 xml = open('cfdi_generado.xml', "w")
 
 xml.write('<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n')
-xml.write('<cfdi:Comprobante Version="3.3" Fecha="'+ str(fecha) +'" Sello="" FormaPago="' + str(formaPago) + '" NoCertificado="20001000000300022762" Certificado="" CondicionesDePago="' + str(condicionesDePago) + '" SubTotal="' + str("{0:.2f}".format(subTotal)) + '" Descuento="' + str("{0:.2f}".format(totalDescuentos)) + '" Moneda="' + str(tipoMoneda) + '" Total="' + str("{0:.2f}".format(totalDeTotales)) + '" TipoDeComprobante="' + str(tipoComprobante) + '" MetodoPago="' + str(metodoPago) + '" LugarExpedicion="' + str(codigoPostal) + '" xmlns:cfdi="http://www.sat.gob.mx/cfd/3" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">\n')
-xml.write('\t<cfdi:CfdiRelacionados TipoRelacion="' + str(cfdi_relacionados) + '">\n')
+xml.write('<cfdi:Comprobante Version="3.3" Fecha="'+ str(fecha) +'" Sello="" FormaPago="' + str(formaPago) + '" NoCertificado="' + str(get_serial) + '" Certificado="' + str(get_certificado) + '" CondicionesDePago="' + str(condicionesDePago) + '" SubTotal="' + str("{0:.2f}".format(subTotal)) + '" Descuento="' + str("{0:.2f}".format(totalDescuentos)) + '" Moneda="' + str(tipoMoneda) + '" Total="' + str("{0:.2f}".format(totalDeTotales)) + '" TipoDeComprobante="' + str(tipoComprobante) + '" MetodoPago="' + str(metodoPago) + '" LugarExpedicion="' + str(codigoPostal) + '" xmlns:cfdi="http://www.sat.gob.mx/cfd/3" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">\n')
+xml.write('\t<cfdi:CfdiRelacionados TipoRelacion="0' + str(cfdi_relacionados) + '">\n')
 for cfdi in cfdiRelacionados:
 	xml.write('\t\t<cfdi:CfdiRelacionado UUID="' + str(cfdi) + '"/>\n')
 xml.write('\t</cfdi:CfdiRelacionados>\n')
@@ -210,7 +231,6 @@ while c < cantConceptos:
 			tras += 1
 			t+=1
 		xml.write('\t\t\t\t</cfdi:Traslados>\n')
-		# importesTraslados.pop(0)
 	if len(retenc) > 0:
 		#ret = 0
 		xml.write('\t\t\t\t<cfdi:Retenciones>\n')
@@ -224,7 +244,6 @@ while c < cantConceptos:
 		xml.write('\t\t\t<cfdi:InformacionAduanera NumeroPedimento="' + str(numerosPedimento[i]) + '"/>\n')
 		xml.write('\t\t\t<cfdi:CuentaPredial Numero="' + str(cuentasPrediales[i]) + '"/>\n')
 		i+=1
-		######################	
 		importados -= 1
 	p = 0
 	while p < cantidad_partes:
@@ -244,19 +263,18 @@ if impuestosRetenciones > 0:
 	i = 0
 	j = 0
 	while i < len(impuestosRetenciones):
-		#while j < len(impuestosRetenciones):
 		if len(impuestosRetenciones[0]) - 1 > 0:
 			if impuestosRetenciones[0][0] == impuestosRetenciones[0][1]:
 				repetidos.append(impuestosRetenciones[0][0])
-				total += totalImpuestosRetenidos
 				impuestosRetenciones[0].pop(1)
 				impuestosRetenciones[1].pop(1)
 		i+=1
+	total += totalImpuestosRetenidos
 	impuestosRetenciones[0].pop(0)
 	impuestosRetenciones[1].pop(0)
 	if len(repetidos) > 0:
-		xml.write('\t\t\t<cfdi:Retencion | Impuesto="' + str(repetidos[0]) + '" Importe="' + str("{0:.2f}".format(total)) + '"/>\n')
-if impuestosRetenciones > 0:
+		xml.write('\t\t\t<cfdi:Retencion Impuesto="' + str(repetidos[0]) + '" Importe="' + str("{0:.2f}".format(total)) + '"/>\n')
+if len(impuestosRetenciones[0]) > 0:
 	i = 0
 	while i < len(impuestosRetenciones) - 1:
 		total = 0.00
@@ -274,3 +292,29 @@ xml.write('\t</cfdi:Impuestos>\n')
 xml.write('</cfdi:Comprobante>\n')
 
 xml.close()
+
+def generar_sello( nombre_archivo, llave_pem ):
+	file = open(nombre_archivo, 'r')
+	comprobante = file.read()
+	file.close()
+	xdoc = ET.fromstring(comprobante)
+	xsl_root = ET.parse('cadenaoriginal_3_3.xslt')
+	xsl = ET.XSLT(xsl_root)
+	cadena_original = xsl(xdoc)
+
+	keys = RSA.load_key(llave_pem)
+	digest = hashlib.new('sha256', str(cadena_original).encode()).digest()
+	sello = base64.b64encode(keys.sign(digest, "sha256"))
+
+	f1 = open("cfdi_generado.xml", "r")
+	f2 = open("cfdi_modificado.xml", "w")
+	for line in f1:
+		f2.write(line.replace('Sello=""', 'Sello="' + str(sello) + '"'))
+	f1.close()
+	f2.close()
+	
+ruta_xml = "cfdi_generado.xml"
+llave_pem = "../informacion_cliente/IIA040805DZ4.key.pem"
+
+
+generar_sello(ruta_xml, llave_pem)
